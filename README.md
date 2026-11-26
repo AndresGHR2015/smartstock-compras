@@ -30,7 +30,7 @@ Este repositorio mantiene el servicio .NET, sus migraciones de PostgreSQL, sus p
 
 ## Primer bloque: estado y ejecución
 
-El consumidor usa el contrato fijado en el submódulo `vendor/smartstock-infra`, revisión `c5867a8d48383dcadae2111eb2bf20770645e565`. Inicializarlo con `git submodule update --init --recursive` y comprobar la revisión con `git -C vendor/smartstock-infra rev-parse HEAD`.
+El consumidor usa el contrato fijado en el submódulo `vendor/smartstock-infra`, revisión `9336529e839c465e1a28bc9976df7a177068ca94`. Inicializarlo con `git submodule update --init --recursive` y comprobar la revisión con `git -C vendor/smartstock-infra rev-parse HEAD`.
 
 El servicio requiere `DATABASE_URL` en formato de cadena de conexión Npgsql, `KAFKA_BOOTSTRAP_SERVERS` y, opcionalmente, `KAFKA_GROUP_ID` (predeterminado `smartstock-compras`). Al iniciar aplica la migración y siembra tres cotizaciones de ejemplo para `SKU-001`. Son datos, no reglas especiales para ese SKU.
 

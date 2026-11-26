@@ -38,7 +38,7 @@ jobs:
         with:
           submodules: recursive
       - name: Check contract revision
-        run: test "$(git -C vendor/smartstock-infra rev-parse HEAD)" = c5867a8d48383dcadae2111eb2bf20770645e565
+        run: test "$(git -C vendor/smartstock-infra rev-parse HEAD)" = 9336529e839c465e1a28bc9976df7a177068ca94
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.100

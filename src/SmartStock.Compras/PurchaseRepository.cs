@@ -60,6 +60,8 @@ public sealed class PurchaseRepository(NpgsqlDataSource dataSource)
         var payload = request.Payload;
         switch (request.Type)
         {
+            case "get_overview":
+                return new OperationResult("OK", await Overview(connection, transaction, cancellationToken));
             case "get_need":
                 return Found(await ReadNeed(connection, transaction, Text(payload, "event_id"), cancellationToken));
             case "list_needs":
@@ -76,6 +78,39 @@ public sealed class PurchaseRepository(NpgsqlDataSource dataSource)
             default:
                 throw new FormatException("Operación de Compras desconocida.");
         }
+    }
+
+    private static async Task<JsonObject> Overview(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        await using var command = Command(connection, transaction, """
+            WITH recent AS (
+                SELECT event_id, sku, occurred_at FROM replenishment_needs
+                ORDER BY occurred_at DESC, event_id LIMIT 5
+            )
+            SELECT
+                (SELECT count(*)::integer FROM replenishment_needs) AS pending_count,
+                (SELECT count(*)::integer FROM purchase_orders WHERE status IN ('DRAFT', 'APPROVED')) AS open_order_count,
+                COALESCE((
+                    SELECT jsonb_agg(jsonb_build_object(
+                        'event_id', event_id, 'sku', sku,
+                        'occurred_at', to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+                        'status', coalesce((
+                            SELECT status FROM purchase_orders
+                            WHERE need_event_id = recent.event_id AND status IN ('DRAFT', 'APPROVED')
+                            ORDER BY (status = 'APPROVED') DESC LIMIT 1
+                        ), 'PENDING')
+                    ) ORDER BY occurred_at DESC, event_id) FROM recent
+                ), '[]'::jsonb) AS needs
+            """);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return new JsonObject
+        {
+            ["pending_count"] = reader.GetInt32(0),
+            ["open_order_count"] = reader.GetInt32(1),
+            ["needs"] = JsonNode.Parse(reader.GetString(2))
+        };
     }
 
     private static async Task<OperationResult> List(
