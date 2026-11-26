@@ -1,0 +1,53 @@
+name: Compras CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: compras_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      kafka:
+        image: apache/kafka:4.1.1
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+        ports:
+          - 9092:9092
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Check contract revision
+        run: test "$(git -C vendor/smartstock-infra rev-parse HEAD)" = c5867a8d48383dcadae2111eb2bf20770645e565
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
+      - name: Test and collect coverage
+        env:
+          TEST_DATABASE_URL: Host=localhost;Database=compras_test;Username=postgres;Password=postgres
+          TEST_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+        run: dotnet test tests/SmartStock.Compras.Tests --collect:"XPlat Code Coverage" --results-directory TestResults
+      - name: Check coverage
+        run: |
+          python3 -c 'import glob,sys,xml.etree.ElementTree as ET; files=glob.glob("TestResults/**/coverage.cobertura.xml",recursive=True); assert files; rate=float(ET.parse(files[0]).getroot().attrib["line-rate"]); print(f"Line coverage: {rate:.1%}"); sys.exit(rate < 0.60)'
+      - run: docker build -t smartstock-compras .
